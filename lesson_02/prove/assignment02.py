@@ -1,7 +1,7 @@
 """
 Course    : CSE 351
 Assignment: 02
-Student   : <your name here>
+Student   : <Alex Kokona>
 
 Instructions:
     - review instructions in the course
@@ -47,13 +47,34 @@ class ATM_Reader():
 # ===========================================================================
 class Account():
     # TODO - implement this class here
-    ...
+    def __init__(self): 
+        self.balance = Money("0")
+
+    def deposit(self, amount:float):
+        pass
+
+    def withdraw(self, amount:float):
+        pass
+
+    def get_balance(self) -> Money:
+        return self.balance
 
 
 # ===========================================================================
 class Bank():
     # TODO - implement this class here
-    ...
+    def __init__(self):
+        account = Account()
+        m = account.get_balance()
+
+    def deposit(self, amount:float):
+        pass
+
+    def withdraw(self, amount:float):
+        pass
+
+    def get_balance(self) -> Money:
+        return ########## finish this
 
 
 # ---------------------------------------------------------------------------

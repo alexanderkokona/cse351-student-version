@@ -1,7 +1,7 @@
 """
 Course    : CSE 351
 Assignment: 02
-Student   : <Alex Kokona>
+Student   : Alexander Kokona
 
 Instructions:
     - review instructions in the course
@@ -24,57 +24,86 @@ def main():
 
     # Load ATM data files
     data_files = get_filenames('data_files')
-    # print(data_files)
     
     log = Log(show_terminal=True)
     log.start_timer()
 
     bank = Bank()
 
-    # TODO - Add a ATM_Reader for each data file
+    # Create and start a thread for each ATM data file
+    readers = []
+    for filename in data_files:
+        reader = ATM_Reader(filename, bank)
+        readers.append(reader)
+        reader.start()
+
+    # Wait for all threads to finish
+    for reader in readers:
+        reader.join()
 
     test_balances(bank)
 
     log.stop_timer('Total time')
 
 
-# ===========================================================================
-class ATM_Reader():
-    # TODO - implement this class here
-    ...
+# ===========================================================================    
+class ATM_Reader(threading.Thread):
+    """ Threaded class that processes one ATM file """
+    def __init__(self, filename, bank: 'Bank'):
+        super().__init__()
+        self.filename = filename
+        self.bank = bank
+
+    def run(self):
+        with open(self.filename, 'r') as f:
+            for line in f:
+                if line.startswith('#'):
+                    continue
+                account_str, ttype, amount_str = line.strip().split(',')
+                account = int(account_str)
+                amount = float(amount_str)
+                if ttype == 'd':
+                    self.bank.deposit(account, amount)
+                elif ttype == 'w':
+                    self.bank.withdraw(account, amount)
 
 
-# ===========================================================================
+# ===========================================================================    
 class Account():
-    # TODO - implement this class here
+    """ Represents a single bank account """
     def __init__(self): 
         self.balance = Money("0")
+        self.lock = threading.Lock()
 
-    def deposit(self, amount:float):
-        pass
+    def deposit(self, amount: float):
+        with self.lock:
+            self.balance.add(Money(f"{amount:.2f}"))
 
-    def withdraw(self, amount:float):
-        pass
+    def withdraw(self, amount: float):
+        with self.lock:
+            self.balance.sub(Money(f"{amount:.2f}"))
 
     def get_balance(self) -> Money:
-        return self.balance
+        with self.lock:
+            return self.balance  # return the actual Money object
 
 
-# ===========================================================================
+# ===========================================================================    
 class Bank():
-    # TODO - implement this class here
+    """ Holds all accounts and routes transactions """
     def __init__(self):
-        account = Account()
-        m = account.get_balance()
+        self.accounts = {}
+        for acc_num in range(1, 21):  # Accounts are numbered 1–20
+            self.accounts[acc_num] = Account()
 
-    def deposit(self, amount:float):
-        pass
+    def deposit(self, account_number: int, amount: float):
+        self.accounts[account_number].deposit(amount)
 
-    def withdraw(self, amount:float):
-        pass
+    def withdraw(self, account_number: int, amount: float):
+        self.accounts[account_number].withdraw(amount)
 
-    def get_balance(self) -> Money:
-        return ########## finish this
+    def get_balance(self, account_number: int) -> Money:
+        return self.accounts[account_number].get_balance()
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +190,11 @@ def test_balances(bank):
         print('\nAll account balances are correct')
 
 
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    # Delete old data files to prevent double-counting
+    if os.path.exists('data_files'):
+        import shutil
+        shutil.rmtree('data_files')
     main()
-

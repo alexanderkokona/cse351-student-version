@@ -14,7 +14,7 @@ from common import *
 from cse351 import *
 
 # global
-THREADS = 10
+THREADS = 30
 call_count = 0
 print_lock = threading.Lock()
 

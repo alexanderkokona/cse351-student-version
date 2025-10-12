@@ -25,8 +25,8 @@ from cse351 import *
 import threading
 import queue
 
-THREADS = 20000
-WORKERS = 1000
+THREADS = 200
+WORKERS = 100
 RECORDS_TO_RETRIEVE = 5000  # Don't change
 
 

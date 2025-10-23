@@ -1,51 +1,40 @@
 """ 
 Course: CSE 351
 Team  : Week 06
-File  : team.py
-Author:  <Your name>
+File  : team_v3.py
+Author: <Your Name>
 
-Purpose: Team Activity: 
+Purpose: Final optimized version of the Week 06 team activity.
 
-Instructions:
-
-- Review instructions in Canvas.
+Optimizations added beyond the previous version:
+- STEP 1: Precompute all positions for each word's first letter to skip scanning the entire board.
+- STEP 2: Skip directions where the remaining letters would go out of bounds.
+- STEP 3: Removed deepcopy(), replaced with lightweight tuple tracking.
+- STEP 4: Minimal console output and per-word timing.
 """
 
-import random
-from datetime import datetime, timedelta
-import threading
-import multiprocessing as mp
-from matplotlib.pylab import plt
-import numpy as np
-import string
 import copy
 import time
 
-# Include cse 351 common Python files
 from cse351 import *
 
 words = ['BOOKMARK', 'SURNAME', 'RETHINKING', 'HEAVY', 'IRONCLAD', 'HAPPY', 
-        'JOURNAL', 'APPARATUS', 'GENERATOR', 'WEASEL', 'OLIVE', 
-        'LINING', 'BAGGAGE', 'SHIRT', 'CASTLE', 'PANEL', 
-        'OVERCLOCKING', 'PRODUCER', 'DIFFUSE', 'SHORE', 
-        'CELL', 'INDUSTRY', 'DIRT', 
-        'TEACHING', 'HIGHWAY', 'DATA', 'COMPUTER', 
-        'TOOTH', 'COLLEGE', 'MAGAZINE', 'ASSUMPTION', 'COOKIE', 
-        'EMPLOYEE', 'DATABASE', 'POET', 'COMPUTER', 'SAMPLE']
+         'JOURNAL', 'APPARATUS', 'GENERATOR', 'WEASEL', 'OLIVE', 
+         'LINING', 'BAGGAGE', 'SHIRT', 'CASTLE', 'PANEL', 
+         'OVERCLOCKING', 'PRODUCER', 'DIFFUSE', 'SHORE', 
+         'CELL', 'INDUSTRY', 'DIRT', 
+         'TEACHING', 'HIGHWAY', 'DATA', 'COMPUTER', 
+         'TOOTH', 'COLLEGE', 'MAGAZINE', 'ASSUMPTION', 'COOKIE', 
+         'EMPLOYEE', 'DATABASE', 'POET', 'COMPUTER', 'SAMPLE']
 
-# https://stackoverflow.com/questions/287871/how-to-print-colored-text-in-python
+
 class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
     WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
     BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+    ENDC = '\033[0m'
 
-class Board():
+
+class Board:
 
     SIZE = 25
 
@@ -61,54 +50,48 @@ class Board():
     )
 
     def __init__(self):
-        """ Create the instance and the board arrays """
-        # self.board = [['.' for _ in range(size)] for _ in range(size)]
-        self.size = self.SIZE 
-        self.highlighting = [[False for _ in range(self.SIZE)] for _ in range(self.SIZE)] 
+        """Initialize the board and highlighting arrays"""
+        self.size = self.SIZE
+        self.highlighting = [[False for _ in range(self.SIZE)] for _ in range(self.SIZE)]
 
-        self.board = [['L', 'S', 'O', 'D', 'A', 'E', 'O', 'M', 'A', 'A', 'I', 'I', 'A', 'S', 'S', 'A', 'M', 'G', 'R', 'C', 'O', 'D', 'A', 'I', 'R'], 
-                      ['A', 'V', 'C', 'S', 'N', 'T', 'U', 'U', 'O', 'H', 'N', 'C', 'H', 'A', 'B', 'E', 'U', 'M', 'O', 'C', 'R', 'G', 'H', 'A', 'I'], 
-                      ['E', 'T', 'H', 'A', 'A', 'S', 'M', 'S', 'S', 'C', 'A', 'O', 'A', 'T', 'N', 'T', 'S', 'N', 'H', 'T', 'A', 'E', 'P', 'D', 'H'], 
-                      ['E', 'I', 'S', 'S', 'S', 'E', 'W', 'S', 'L', 'V', 'R', 'R', 'H', 'S', 'E', 'Q', 'S', 'B', 'S', 'M', 'E', 'R', 'V', 'K', 'A'], 
-                      ['R', 'S', 'S', 'A', 'H', 'B', 'B', 'A', 'L', 'E', 'E', 'I', 'L', 'B', 'T', 'R', 'A', 'W', 'C', 'K', 'W', 'W', 'E', 'O', 'A'], 
-                      ['U', 'U', 'G', 'N', 'I', 'K', 'N', 'I', 'H', 'T', 'E', 'R', 'A', 'V', 'L', 'L', 'D', 'N', 'L', 'H', 'Y', 'S', 'S', 'T', 'A'], 
-                      ['M', 'O', 'C', 'D', 'M', 'B', 'N', 'D', 'U', 'Q', 'M', 'I', 'A', 'A', 'H', 'L', 'E', 'N', 'A', 'P', 'E', 'K', 'H', 'I', 'H'], 
-                      ['L', 'C', 'O', 'O', 'K', 'I', 'E', 'P', 'U', 'A', 'O', 'E', 'N', 'T', 'D', 'Q', 'L', 'Q', 'C', 'N', 'T', 'J', 'I', 'D', 'A'], 
-                      ['C', 'H', 'G', 'A', 'N', 'V', 'M', 'M', 'G', 'Y', 'S', 'R', 'E', 'G', 'E', 'L', 'L', 'O', 'C', 'O', 'F', 'Y', 'R', 'I', 'N'], 
-                      ['A', 'E', 'A', 'G', 'T', 'O', 'J', 'A', 'O', 'U', 'U', 'W', 'A', 'D', 'E', 'O', 'V', 'P', 'O', 'A', 'O', 'N', 'T', 'U', 'A'], 
-                      ['A', 'A', 'R', 'E', 'C', 'A', 'Z', 'W', 'F', 'O', 'H', 'A', 'P', 'C', 'Q', 'S', 'P', 'T', 'E', 'V', 'I', 'L', 'O', 'G', 'A'], 
-                      ['B', 'V', 'J', 'E', 'M', 'I', 'D', 'F', 'J', 'T', 'I', 'E', 'P', 'A', 'C', 'S', 'H', 'Y', 'X', 'G', 'R', 'R', 'Z', 'D', 'E'], 
-                      ['A', 'Y', 'T', 'L', 'N', 'A', 'I', 'D', 'K', 'G', 'G', 'E', 'A', 'M', 'N', 'I', 'R', 'O', 'N', 'C', 'L', 'A', 'D', 'D', 'A'], 
-                      ['G', 'S', 'W', 'E', 'S', 'D', 'N', 'U', 'O', 'I', 'H', 'Y', 'R', 'G', 'L', 'L', 'M', 'I', 'Y', 'D', 'V', 'M', 'A', 'J', 'O'], 
-                      ['G', 'A', 'E', 'A', 'A', 'Y', 'A', 'R', 'N', 'W', 'W', 'O', 'A', 'U', 'K', 'N', 'K', 'T', 'B', 'I', 'R', 'T', 'M', 'C', 'U'], 
-                      ['A', 'M', 'A', 'S', 'R', 'C', 'O', 'A', 'U', 'R', 'A', 'L', 'T', 'O', 'Y', 'C', 'E', 'O', 'E', 'E', 'A', 'F', 'P', 'P', 'Y'], 
-                      ['G', 'P', 'S', 'S', 'O', 'I', 'H', 'V', 'D', 'S', 'Y', 'P', 'U', 'B', 'O', 'R', 'O', 'Z', 'T', 'B', 'P', 'D', 'M', 'P', 'M'], 
-                      ['E', 'L', 'E', 'U', 'T', 'J', 'F', 'I', 'E', 'D', 'S', 'M', 'S', 'L', 'O', 'K', 'T', 'U', 'A', 'R', 'D', 'O', 'P', 'K', 'H'], 
-                      ['U', 'E', 'L', 'M', 'A', 'N', 'R', 'C', 'N', 'R', 'Q', 'E', 'C', 'R', 'M', 'Y', 'P', 'S', 'O', 'Z', 'C', 'A', 'O', 'S', 'D'], 
-                      ['C', 'D', 'G', 'P', 'R', 'T', 'E', 'X', 'Y', 'G', 'C', 'R', 'D', 'A', 'T', 'M', 'E', 'D', 'U', 'D', 'H', 'O', 'C', 'A', 'S'], 
-                      ['A', 'T', 'N', 'T', 'E', 'M', 'O', 'X', 'E', 'S', 'E', 'L', 'R', 'I', 'O', 'H', 'U', 'J', 'Q', 'D', 'B', 'D', 'I', 'F', 'F'], 
-                      ['C', 'D', 'D', 'I', 'N', 'A', 'K', 'Q', 'N', 'V', 'K', 'K', 'O', 'C', 'N', 'C', 'Q', 'L', 'O', 'I', 'N', 'D', 'L', 'U', 'C'], 
-                      ['A', 'I', 'S', 'O', 'E', 'G', 'P', 'G', 'O', 'M', 'Y', 'O', 'Z', 'C', 'E', 'D', 'R', 'D', 'T', 'U', 'N', 'I', 'A', 'S', 'S'], 
-                      ['F', 'R', 'O', 'N', 'G', 'A', 'A', 'A', 'A', 'C', 'C', 'P', 'V', 'R', 'K', 'D', 'U', 'A', 'I', 'A', 'R', 'D', 'Z', 'E', 'D'], 
-                      ['D', 'C', 'D', 'V', 'A', 'Z', 'N', 'G', 'S', 'O', 'L', 'D', 'I', 'E', 'I', 'I', 'D', 'S', 'S', 'F', 'C', 'N', 'U', 'A', 'I']]
-
+        # Provided static board
+        self.board = [
+            list("LSODAEOMAAIIASSAMGRCODAIR"),
+            list("AVCSNTUUOHNCHABEUOMOCRGHAI"),
+            list("ETHAASMS SCAOATNTSNHTAEPDH".replace(" ", "")),
+            list("EISSS EWSLVRRHSEQSB SMERVKA".replace(" ", "")),
+            list("RSSAHBBAL EEILBTRAWCKWWEOA".replace(" ", "")),
+            list("UUGNIKNIHTERAVLLDNLHY SSTA".replace(" ", "")),
+            list("MOCDMBNDUQMIAAHLENAPEKHIH"),
+            list("LCOOKIEPUAOENTDQLQCNTJIDA"),
+            list("CHGANVMMGYSREGELLLOCOFYRIN"),
+            list("AEAGTOJAOUUWADEOVPOAONTUA"),
+            list("AARECAZ WFOHAPCQSPTEVILOGA".replace(" ", "")),
+            list("BVJEMIDFJTIEPACS HYXGRRZDE".replace(" ", "")),
+            list("AYTLNAIDKGG EAMNI RONCLADDA".replace(" ", "")),
+            list("GSWESDNUOIHYRGLLMIYDVMAJO"),
+            list("GAEAAYARNWWOAU K NKT BIRTM".replace(" ", "")),
+            list("AMASRCOAURALTOYCEOEEAFP P Y".replace(" ", "")),
+            list("GPSSOIHVDSYPUBOROZTBPDMPM"),
+            list("ELEUTJFIEDSM SLOKTUARDOPKH".replace(" ", "")),
+            list("UELMANRCNRQEC RMYPSOZCAOSD".replace(" ", "")),
+            list("CDGPRTEXYGCRDATMEDUDHOCAS"),
+            list("ATNTEMOXESELRIOHUJQDBDIF F".replace(" ", "")),
+            list("CDD INAKQNVKKOCNCQL OINDLUC".replace(" ", "")),
+            list("AISOEGPGOMYOZCEDRDTUN IASS".replace(" ", "")),
+            list("FRONGAAAACCPVRKD UAIARDZED".replace(" ", "")),
+            list("DCDVAZNGSOLDIEIIDS SFCNUAI".replace(" ", ""))
+        ]
 
     def highlight(self, row, col, on=True):
-        """ Turn on/off highlighting for a letter """
         self.highlighting[row][col] = on
 
-    def get_size(self):
-        """ Return the size of the board """
-        return self.size
-
     def get_letter(self, x, y):
-        """ Return the letter found at (x, y) """
-        if x < 0 or y < 0 or x >= self.size or y >= self.size:
-            return ''
-        return self.board[x][y]
+        if 0 <= x < self.size and 0 <= y < self.size:
+            return self.board[x][y]
+        return ''
 
     def display(self):
-        """ Display the board with highlighting """
         print()
         for row in range(self.size):
             for col in range(self.size):
@@ -118,29 +101,43 @@ class Board():
                     print(f'{self.board[row][col]} ', end='')
             print()
 
-    def _word_at_this_location(self, row, col, direction, word):
-        """ Helper function: is the word found on the board at (x, y) in a direction """
+    def _word_at_location(self, row, col, direction, word):
+        """Check if word exists starting at (row, col) in given direction."""
         dir_x, dir_y = self.directions[direction]
-        highlight_copy = copy.deepcopy(self.highlighting)
+        changes = []
+
+        # Skip if word would go out of bounds
+        end_x = row + dir_x * (len(word) - 1)
+        end_y = col + dir_y * (len(word) - 1)
+        if not (0 <= end_x < self.size and 0 <= end_y < self.size):
+            return False
+
         for letter in word:
-            board_letter = self.get_letter(row, col)
-            if board_letter == letter:
-                self.highlight(row, col)
+            if self.get_letter(row, col) == letter:
+                changes.append((row, col))
                 row += dir_x
                 col += dir_y
             else:
-                self.highlighting = copy.deepcopy(highlight_copy)
                 return False
+
+        # If found, highlight
+        for r, c in changes:
+            self.highlight(r, c)
         return True
 
     def find_word(self, word):
-        """ Find a word in the board """
+        """Find and highlight the given word on the board."""
         print(f'Finding {word}...')
-        for row in range(self.size):
-            for col in range(self.size):
-                for d in range(0, 8):
-                    if self._word_at_this_location(row, col, d, word):
-                        return True
+        first_char = word[0]
+
+        # Precompute positions of first letter
+        starts = [(r, c) for r in range(self.size) for c in range(self.size)
+                  if self.board[r][c] == first_char]
+
+        for (row, col) in starts:
+            for d in range(8):
+                if self._word_at_location(row, col, d, word):
+                    return True
         return False
 
 
@@ -150,13 +147,15 @@ def main():
 
     start = time.perf_counter()
     for word in words:
+        w_start = time.perf_counter()
         if not board.find_word(word):
             print(f'Error: Could not find "{word}"')
-    
-    total_time = time.perf_counter() - start
+        else:
+            print(f'Found "{word}" in {time.perf_counter() - w_start:.4f}s')
 
+    total_time = time.perf_counter() - start
     board.display()
-    print(f'Time to find words = {total_time}')
+    print(f'\nTotal time to find all words: {total_time:.4f}s')
 
 
 if __name__ == '__main__':

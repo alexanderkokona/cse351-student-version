@@ -2,7 +2,7 @@
 Course: CSE 351 
 Week: 07 Team
 File:   team.py
-Author: <Add name here>
+Author: <Your Name>
 
 Purpose: Solve the Dining philosophers problem to practice skills you have learned so far in this course.
 
@@ -26,52 +26,108 @@ an infinite supply and an infinite demand are assumed.
 
 The problem is how to design a discipline of behavior (a concurrent algorithm)
 such that no philosopher will starve
-
-Instructions:
-
-        ****************************************************************
-        ** DO NOT search for a solution on the Internet! Your goal is **
-        ** not to copy a solution, but to work out this problem using **
-        ** the skills you have learned so far in this course.         **
-        ****************************************************************
-
-Requirements you must Implement:
-
-- Use threads for this problem.
-- Start with the PHILOSOPHERS being set to 5.
-- Philosophers need to eat for a random amount of time, between 1 to 3 seconds, when they get both forks.
-- Philosophers need to think for a random amount of time, between 1 to 3 seconds, when they are finished eating.
-- You want as many philosophers to eat and think concurrently as possible without violating any rules.
-- When the number of philosophers has eaten a combined total of MAX_MEALS_EATEN times, stop the
-  philosophers from trying to eat; any philosophers already eating will put down their forks when they finish eating.
-    - MAX_MEALS_EATEN = PHILOSOPHERS x 5
-
-Suggestions and team Discussion:
-
-- You have Locks and Semaphores that you can use:
-    - Remember that lock.acquire() has arguments that may be useful: `blocking` and `timeout`.  
-- Design your program to handle N philosophers and N forks after you get it working for 5.
-- When you get your program working, how to you prove that no philosopher will starve?
-  (Just looking at output from print() statements is not enough!)
-- Are the philosophers each eating and thinking the same amount?
-    - Modify your code to track how much eat philosopher is eating.
-- Using lists for the philosophers and forks will help you in this program. For example:
-  philosophers[i] needs forks[i] and forks[(i+1) % PHILOSOPHERS] to eat (the % operator helps).
 """
 
 import time
 import random
 import threading
 
+# --------------------------------------------------------------------------
+# Configuration
+# --------------------------------------------------------------------------
 PHILOSOPHERS = 5
-MAX_MEALS_EATEN = PHILOSOPHERS * 5 # NOTE: Total meals to be eaten, not per philosopher!
+MAX_MEALS_EATEN = PHILOSOPHERS * 5  # total meals before stopping
+DELAY = 1.0  # optional speed control
 
+# Shared counters (need thread-safe access)
+meal_count = 0
+meals = [0] * PHILOSOPHERS
+meal_lock = threading.Lock()  # protects shared meal counters
+
+
+# --------------------------------------------------------------------------
+# Philosopher Class
+# --------------------------------------------------------------------------
+class Philosopher(threading.Thread):
+    def __init__(self, pid, left_fork, right_fork):
+        threading.Thread.__init__(self)
+        self.pid = pid
+        self.left_fork = left_fork
+        self.right_fork = right_fork
+
+    def run(self):
+        global meal_count
+
+        while True:
+            # Check if we’re done (protected by meal_lock)
+            with meal_lock:
+                if meal_count >= MAX_MEALS_EATEN:
+                    break
+
+            # Try to acquire left fork
+            self.left_fork.acquire()
+            # Try to acquire right fork (non-blocking)
+            if not self.right_fork.acquire(blocking=False):
+                # Couldn’t get both forks – put left back down and swap order
+                self.left_fork.release()
+                self.left_fork, self.right_fork = self.right_fork, self.left_fork
+                continue
+
+            # Eat
+            self.eat()
+
+            # Update counters
+            with meal_lock:
+                meal_count += 1
+                meals[self.pid] += 1
+
+            # Release both forks
+            self.left_fork.release()
+            self.right_fork.release()
+
+            # Think
+            self.think()
+
+    def eat(self):
+        print(f"Philosopher {self.pid} starts eating.")
+        time.sleep(random.uniform(1, 3) / DELAY)
+        print(f"Philosopher {self.pid} finishes eating.")
+
+    def think(self):
+        print(f"Philosopher {self.pid} starts thinking.")
+        time.sleep(random.uniform(1, 3) / DELAY)
+        print(f"Philosopher {self.pid} stops thinking.")
+
+
+# --------------------------------------------------------------------------
+# Main Program
+# --------------------------------------------------------------------------
 def main():
-    # TODO - Create the forks.
-    # TODO - Create PHILOSOPHERS philosophers.
-    # TODO - Start them eating and thinking.
-    # TODO - Display how many times each philosopher ate.
-    pass
+    global meal_count
+    meal_count = 0
+
+    # Create forks (locks)
+    forks = [threading.Lock() for _ in range(PHILOSOPHERS)]
+
+    # Create philosophers (each needs two adjacent forks)
+    philosophers = [
+        Philosopher(i, forks[i % PHILOSOPHERS], forks[(i + 1) % PHILOSOPHERS])
+        for i in range(PHILOSOPHERS)
+    ]
+
+    # Start all threads
+    for p in philosophers:
+        p.start()
+
+    # Wait for all threads to finish
+    for p in philosophers:
+        p.join()
+
+    # Display results
+    print("\n--- Simulation Complete ---")
+    print(f"Total meals eaten: {meal_count}")
+    for i in range(PHILOSOPHERS):
+        print(f"Philosopher {i} ate {meals[i]} times.")
 
 
 if __name__ == '__main__':

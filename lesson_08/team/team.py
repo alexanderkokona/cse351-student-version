@@ -67,21 +67,92 @@ Suggestions and team Discussion:
 """
 
 import time
+import random
 import threading
 
 PHILOSOPHERS = 5
-MAX_MEALS_EATEN = PHILOSOPHERS * 5 # NOTE: Total meals to be eaten, not per philosopher!
+MAX_MEALS_EATEN = PHILOSOPHERS * 5
 
-# TODO - Create the Waiter class.
+meals_total = 0
+meals_per_philo = [0] * PHILOSOPHERS
+
+class Waiter:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.forks = [False] * PHILOSOPHERS  # False = free
+
+    def can_eat(self, pid):
+        left = pid
+        right = (pid + 1) % PHILOSOPHERS
+        with self.lock:
+            if not self.forks[left] and not self.forks[right]:
+                self.forks[left] = True
+                self.forks[right] = True
+                return True
+            else:
+                return False
+
+    def finished_eating(self, pid):
+        left = pid
+        right = (pid + 1) % PHILOSOPHERS
+        with self.lock:
+            self.forks[left] = False
+            self.forks[right] = False
+
+class Philosopher(threading.Thread):
+    def __init__(self, pid, waiter, meals_lock):
+        super().__init__()
+        self.pid = pid
+        self.waiter = waiter
+        self.meals_lock = meals_lock
+
+    def run(self):
+        global meals_total, meals_per_philo
+        while True:
+            # stop condition
+            with self.meals_lock:
+                if meals_total >= MAX_MEALS_EATEN:
+                    break
+
+            if self.waiter.can_eat(self.pid):
+                self.eat()
+                # update counts
+                with self.meals_lock:
+                    if meals_total < MAX_MEALS_EATEN:
+                        meals_total += 1
+                        meals_per_philo[self.pid] += 1
+                self.waiter.finished_eating(self.pid)
+                self.think()
+            else:
+                # waiter said no, try again later
+                time.sleep(random.uniform(0.2, 1.0))
+
+    def eat(self):
+        print(f"Philosopher {self.pid} starts eating")
+        time.sleep(random.uniform(1, 3))
+        print(f"Philosopher {self.pid} finishes eating")
+
+    def think(self):
+        time.sleep(random.uniform(1, 3))
 
 def main():
-    # TODO - Get an instance of the Waiter.
-    # TODO - Create the forks???
-    # TODO - Create PHILOSOPHERS philosophers.
-    # TODO - Start them eating and thinking.
-    # TODO - Display how many times each philosopher ate.
-    pass
+    waiter = Waiter()
+    meals_lock = threading.Lock()
 
+    philosophers = [
+        Philosopher(i, waiter, meals_lock)
+        for i in range(PHILOSOPHERS)
+    ]
+
+    for p in philosophers:
+        p.start()
+
+    for p in philosophers:
+        p.join()
+
+    print("All done")
+    print(f"Meals per philosopher: {meals_per_philo}")
+    print(f"Total meals: {sum(meals_per_philo)}")
 
 if __name__ == '__main__':
     main()

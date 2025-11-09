@@ -2,7 +2,7 @@
 Course: CSE 251 
 Assignment: 08 Prove Part 1
 File:   prove_part_1.py
-Author: <Add name here>
+Author: Alex Kokona
 
 Purpose: Part 1 of assignment 8, finding the path to the end of a maze using recursion.
 
@@ -13,37 +13,57 @@ Instructions:
 - Complete any TODO comments.
 """
 
-import math
+import sys
+import cv2
+
 from screen import Screen
 from maze import Maze
-import cv2
-import sys
-
-# Include cse 351 files
 from cse351 import *
 
 SCREEN_SIZE = 800
-COLOR = (0, 0, 255)
+COLOR = (0, 0, 255)      # path color
 SLOW_SPEED = 100
 FAST_SPEED = 1
 speed = SLOW_SPEED
 
-# TODO: Add any functions needed here.
 
 def solve_path(maze):
     """ Solve the maze and return the path found between the start and end positions.  
-        The path is a list of positions, (x, y) """
+        The path is a list of positions, (row, col) """
+    start_row, start_col = maze.get_start_pos()
     path = []
-    # TODO: Solve the maze recursively while tracking the correct path.
 
-    # Hint: You can create an inner function to do the recursion
+    def dfs(row, col):
+        # can't move here
+        if not maze.can_move_here(row, col):
+            return False
 
+        # reached the end
+        if maze.at_end(row, col):
+            path.append((row, col))
+            return True
+
+        # move onto this cell and show it
+        maze.move(row, col, COLOR)
+
+        # try all possible moves (maze already shuffles them)
+        for nr, nc in maze.get_possible_moves(row, col):
+            if dfs(nr, nc):
+                # if child call found the end, add current cell to path
+                path.append((row, col))
+                return True
+
+        # dead end → restore to visited/gray
+        maze.restore(row, col)
+        return False
+
+    dfs(start_row, start_col)
+    path.reverse()
     return path
 
 
 def get_path(log, filename):
     """ Do not change this function """
-    # 'Maze: Press "q" to quit, "1" slow drawing, "2" faster drawing, "p" to play again'
     global speed
 
     # create a Screen Object that will contain all of the drawing commands

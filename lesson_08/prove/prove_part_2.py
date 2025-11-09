@@ -2,18 +2,11 @@
 Course: CSE 351 
 Assignment: 08 Prove Part 2
 File:   prove_part_2.py
-Author: <Add name here>
+Author: Alex Kokona
 
-Purpose: Part 2 of assignment 8, finding the path to the end of a maze using recursion.
-
-Instructions:
-- Do not create classes for this assignment, just functions.
-- Do not use any other Python modules other than the ones included.
-- You MUST use recursive threading to find the end of the maze.
-- Each thread MUST have a different color than the previous thread:
-    - Use get_color() to get the color for each thread; you will eventually have duplicated colors.
-    - Keep using the same color for each branch that a thread is exploring.
-    - When you hit an intersection spin off new threads for each option and give them their own colors.
+Purpose: Part 2 of assignment 8, finding the end of the maze using recursion
+and threading. Each time we reach a fork, we spawn threads so paths are
+searched concurrently.
 
 This code is not interested in tracking the path to the end position. Once you have completed this
 program however, describe how you could alter the program to display the found path to the exit
@@ -21,12 +14,14 @@ position:
 
 What would be your strategy?
 
-<Answer here>
+I would have each path/thread maintain a list of the coordinates it visited. When a thread reaches
+the exit and sets the global stop flag, that same thread can then walk back through its stored list
+and recolor those cells as the “final path.”
 
 Why would it work?
 
-<Answer here>
-
+Because only the thread that actually finds the exit sets stop = True. That thread’s own visited
+sequence is therefore the successful route. Recoloring only that list will display the correct path.
 """
 
 import math
@@ -40,7 +35,6 @@ import cv2
 from cse351 import *
 
 SCREEN_SIZE = 700
-COLOR = (0, 0, 255)
 COLORS = (
     (0,0,255),
     (0,255,0),
@@ -68,6 +62,7 @@ thread_count = 0
 stop = False
 speed = SLOW_SPEED
 
+
 def get_color():
     """ Returns a different color when called """
     global current_color_index
@@ -78,16 +73,62 @@ def get_color():
     return color
 
 
-# TODO: Add any function(s) you need, if any, here.
+def explore(maze, row, col, color):
+    """Recursive threaded search from (row, col)."""
+    global stop, thread_count
+
+    # stop if someone else already found exit
+    if stop:
+        return
+
+    # can't move here
+    if not maze.can_move_here(row, col):
+        return
+
+    # reached exit
+    if maze.at_end(row, col):
+        stop = True
+        maze.move(row, col, (255, 255, 255))   # mark exit clearly
+        return
+
+    # mark current cell
+    maze.move(row, col, color)
+
+    moves = maze.get_possible_moves(row, col)
+
+    # if more than one path, fork
+    if len(moves) > 1:
+        threads = []
+        for r, c in moves:
+            if stop:
+                break
+            thread_count += 1
+            t = threading.Thread(target=explore, args=(maze, r, c, get_color()))
+            t.start()
+            threads.append(t)
+        # wait for all child threads
+        for t in threads:
+            t.join()
+    elif len(moves) == 1:
+        # continue straight
+        nr, nc = moves[0]
+        explore(maze, nr, nc, color)
+    else:
+        # dead end
+        maze.restore(row, col)
 
 
 def solve_find_end(maze):
     """ Finds the end position using threads. Nothing is returned. """
-    # When one of the threads finds the end position, stop all of them.
-    global stop
+    global stop, thread_count
     stop = False
+    thread_count = 1
 
+    start_row, start_col = maze.get_start_pos()
+    first_color = get_color()
 
+    # start the initial recursive search (in current thread)
+    explore(maze, start_row, start_col, first_color)
 
 
 def find_end(log, filename, delay):

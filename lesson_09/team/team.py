@@ -1,11 +1,10 @@
-""" 
+"""
 Course: CSE 351
-Team  : 
+Team  :
 File  : Week 9 team.py
-Author:  Luc Comeau
+Author:  Luc Comeau (student implementation by your team)
 """
 
-# Include CSE 351 common Python files. 
 from cse351 import *
 import time
 import random
@@ -24,6 +23,7 @@ STOPPING_PARTY_MESSAGE  = 'Turning off the lights  ^^^^^^^^^^^^^^^^^^^^^^^^^^'
 STARTING_CLEANING_MESSAGE =  'Starting to clean the room >>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
 STOPPING_CLEANING_MESSAGE  = 'Finish cleaning the room <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'
 
+
 def cleaner_waiting():
     time.sleep(random.uniform(0, 2))
 
@@ -38,37 +38,90 @@ def guest_partying(id, count):
     print(f'Guest: {id}, count = {count}')
     time.sleep(random.uniform(0, 1))
 
-def cleaner():
-    """
-    do the following for TIME seconds
-        cleaner will wait to try to clean the room (cleaner_waiting())
-        get access to the room
-        display message STARTING_CLEANING_MESSAGE
-        Take some time cleaning (cleaner_cleaning())
-        display message STOPPING_CLEANING_MESSAGE
-    """
-    pass
 
-def guest():
-    """
-    do the following for TIME seconds
-        guest will wait to try to get access to the room (guest_waiting())
-        get access to the room
-        display message STARTING_PARTY_MESSAGE if this guest is the first one in the room
-        Take some time partying (call guest_partying())
-        display message STOPPING_PARTY_MESSAGE if the guest is the last one leaving in the room
-    """
-    pass
+def cleaner(id, start_time, room_lock, guest_count, guest_count_lock,
+            cleaned_count):
+    while time.time() - start_time < TIME:
+        cleaner_waiting()
+
+        # cleaners need exclusive access
+        room_lock.acquire()
+
+        print(STARTING_CLEANING_MESSAGE)
+        cleaner_cleaning(id)
+        print(STOPPING_CLEANING_MESSAGE)
+
+        with cleaned_count.get_lock():
+            cleaned_count.value += 1
+
+        room_lock.release()
+
+
+def guest(id, start_time, room_lock, guest_count, guest_count_lock,
+          party_count):
+    while time.time() - start_time < TIME:
+        guest_waiting()
+
+        # entering guest
+        with guest_count_lock:
+            if guest_count.value == 0:
+                # first guest must lock the room for cleaners
+                room_lock.acquire()
+                print(STARTING_PARTY_MESSAGE)
+                with party_count.get_lock():
+                    party_count.value += 1
+
+            guest_count.value += 1
+            current_count = guest_count.value
+
+        # guest is partying
+        guest_partying(id, current_count)
+
+        # leaving guest
+        with guest_count_lock:
+            guest_count.value -= 1
+            if guest_count.value == 0:
+                # last guest leaves → unlock cleaners and lights off
+                print(STOPPING_PARTY_MESSAGE)
+                room_lock.release()
+
 
 def main():
-    # Start time of the running of the program.
     start_time = time.time()
 
-    # TODO - add any variables, data structures, processes you need
-    # TODO - add any arguments to cleaner() and guest() that you need
+    # shared state
+    room_lock = mp.Lock()
+    guest_count_lock = mp.Lock()
 
-    # Results
-    print(f'Room was cleaned {cleaned_count} times, there were {party_count} parties')
+    guest_count = mp.Value('i', 0)
+    party_count = mp.Value('i', 0)
+    cleaned_count = mp.Value('i', 0)
+
+    processes = []
+
+    # cleaners
+    for i in range(1, CLEANING_STAFF + 1):
+        p = mp.Process(target=cleaner,
+                       args=(i, start_time,
+                             room_lock, guest_count, guest_count_lock,
+                             cleaned_count))
+        processes.append(p)
+        p.start()
+
+    # guests
+    for i in range(1, HOTEL_GUESTS + 1):
+        p = mp.Process(target=guest,
+                       args=(i, start_time,
+                             room_lock, guest_count, guest_count_lock,
+                             party_count))
+        processes.append(p)
+        p.start()
+
+    # wait for all to finish
+    for p in processes:
+        p.join()
+
+    print(f'Room was cleaned {cleaned_count.value} times, there were {party_count.value} parties')
 
 
 if __name__ == '__main__':
